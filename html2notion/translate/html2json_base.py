@@ -6,6 +6,7 @@ from bs4 import NavigableString, Tag, PageElement
 from enum import Enum
 from ..utils import logger, config, is_valid_url
 
+
 class Block(Enum):
     FAIL = "fail"
     PARAGRAPH = "paragraph"
@@ -38,16 +39,16 @@ class Html2JsonBase:
     }
 
     _language = {"abap", "agda", "arduino",
-    "assembly", "bash", "basic", "bnf", "c", "c#", "c++", "clojure", "coffeescript", "coq", "css",
-    "dart", "dhall", "diff", "docker", "ebnf", "elixir", "elm", "erlang", "f#", "flow", "fortran",
-    "gherkin", "glsl", "go", "graphql", "groovy", "haskell", "html", "idris", "java", "javascript",
-    "json", "julia", "kotlin", "latex", "less", "lisp", "livescript", "llvm ir", "lua", "makefile",
-    "markdown", "markup", "matlab", "mathematica", "mermaid", "nix", "objective-c", "ocaml", "pascal",
-    "perl", "php", "plain text", "powershell", "prolog", "protobuf", "purescript", "python", "r",
-    "racket", "reason", "ruby", "rust", "sass", "scala", "scheme", "scss", "shell", "solidity", "sql",
-    "swift", "toml", "typescript", "vb.net", "verilog", "vhdl", "visual basic", "webassembly", "xml",
-    "yaml", "java/c/c++/c#"}
-    
+                 "assembly", "bash", "basic", "bnf", "c", "c#", "c++", "clojure", "coffeescript", "coq", "css",
+                 "dart", "dhall", "diff", "docker", "ebnf", "elixir", "elm", "erlang", "f#", "flow", "fortran",
+                 "gherkin", "glsl", "go", "graphql", "groovy", "haskell", "html", "idris", "java", "javascript",
+                 "json", "julia", "kotlin", "latex", "less", "lisp", "livescript", "llvm ir", "lua", "makefile",
+                 "markdown", "markup", "matlab", "mathematica", "mermaid", "nix", "objective-c", "ocaml", "pascal",
+                 "perl", "php", "plain text", "powershell", "prolog", "protobuf", "purescript", "python", "r",
+                 "racket", "reason", "ruby", "rust", "sass", "scala", "scheme", "scss", "shell", "solidity", "sql",
+                 "swift", "toml", "typescript", "vb.net", "verilog", "vhdl", "visual basic", "webassembly", "xml",
+                 "yaml", "java/c/c++/c#"}
+
     _color_tuple = namedtuple("Color", "name r g b")
     _notion_color = [
         _color_tuple("default", 0, 0, 0),
@@ -108,7 +109,7 @@ class Html2JsonBase:
                             text = child.text
                             parent_tags = [p for p in parents + [tag]]
                             results.append((text, parent_tags))
-                    elif isinstance(child, Tag) and child.name == 'br':  
+                    elif isinstance(child, Tag) and child.name == 'br':
                         results.append(('<br>', []))
                     else:
                         results.extend(Html2JsonBase.extract_text_and_parents(child, parents + [tag]))
@@ -177,7 +178,7 @@ class Html2JsonBase:
                 if len(text) <= self.TEXT_MAX_LENGTH:
                     text_obj = self.generate_text(**text_params)
                 else:
-                    for chunk in [text[i:i+self.TEXT_MAX_LENGTH] for i in range(0, len(text), self.TEXT_MAX_LENGTH)]:
+                    for chunk in [text[i:i + self.TEXT_MAX_LENGTH] for i in range(0, len(text), self.TEXT_MAX_LENGTH)]:
                         text_params["plain_text"] = chunk
                         text_obj = self.generate_text(**text_params)
                         if text_obj:
@@ -364,7 +365,7 @@ class Html2JsonBase:
     @staticmethod
     def _hex_to_rgb(hex_color):
         hex_color = hex_color.lstrip("#")
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
     @staticmethod
     def get_color(styles: dict, attrs):
@@ -383,7 +384,7 @@ class Html2JsonBase:
         # Check if color is in hexadecimal format
         elif re.match(r'^#(?:[0-9a-fA-F]{3}){1,2}$', color):
             if len(color) == 4:  # Short form like #abc -> #aabbcc
-                color = '#' + ''.join([c*2 for c in color[1:]])
+                color = '#' + ''.join([c * 2 for c in color[1:]])
             r, g, b = Html2JsonBase._hex_to_rgb(color)
             return Html2JsonBase._closest_color(r, g, b)
 
@@ -429,6 +430,9 @@ class Html2JsonBase:
         text_obj = self.generate_inline_obj(soup)
         if text_obj:
             rich_text.extend(text_obj)
+            if soup.get('data-toggle'):
+                json_obj["type"] = "toggle"
+                json_obj.update(toggle=json_obj.pop(heading_level), children=[])
             return json_obj
         return None
 
@@ -445,7 +449,7 @@ class Html2JsonBase:
         for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
             heading.unwrap()
 
-        items = soup.find_all('li', recursive=True)
+        items = [li for li in soup.find_all('li', recursive=True) if li.parent == soup]
         if not items:
             logger.warning("No list items found in {soup}")
 
@@ -465,15 +469,37 @@ class Html2JsonBase:
         json_obj = {
             "object": "block",
             list_type: {
-                "rich_text": []
+                "rich_text": [],
+                "children": []
             },
             "type": list_type,
         }
         rich_text = json_obj[list_type]["rich_text"]
-        text_obj = self.generate_inline_obj(soup)
-        if text_obj:
-            rich_text.extend(text_obj)
+        children = json_obj[list_type]["children"]
+        top_level_lists = []
 
+        for tag in soup.find_all(['ul', 'ol'], recursive=True):
+            if tag.parent == soup:
+                top_level_lists.append(tag)
+
+        if top_level_lists:
+            print(top_level_lists)
+            for top_level_list in top_level_lists:
+                list_type = None
+                if top_level_list.name == 'ol':
+                    list_type = "numbered_list_item"
+                elif top_level_list.name == 'ul':
+                    list_type = "bulleted_list_item"
+                converted_list_item = self.convert_list_items(top_level_list, list_type)
+                children.append(converted_list_item)
+        else:
+            text_obj = self.generate_inline_obj(soup)
+            if text_obj:
+                for item in text_obj:
+                    if item.get("object") == "block" and item.get("type") in {"image", "file"}:
+                        children.append(item)
+                    else:
+                        rich_text.append(item)
         return json_obj
 
     """
@@ -483,6 +509,7 @@ class Html2JsonBase:
     <div><br /></div>
     </div>
     """
+
     # ../examples/insert_table.ipynb
     def convert_table(self, soup):
         table_rows = []
@@ -526,7 +553,7 @@ class Html2JsonBase:
         need_split = any(text.get("object") == "block" for text in rich_text)
         if not need_split:
             return [text_obj]
-        
+
         split_obj = []
         cur_obj = {
             "object": "block",
@@ -548,7 +575,7 @@ class Html2JsonBase:
         return split_obj
 
     # Only if there is no ";" in the value of the attribute, you can use this method to get all attributes.
-    # Can't use this way like: background-image: url('data:image/png;base64...') 
+    # Can't use this way like: background-image: url('data:image/png;base64...')
     @staticmethod
     def get_tag_style(tag_soup):
         styles = {}
@@ -569,7 +596,7 @@ class Html2JsonBase:
         if language in Html2JsonBase._language:
             return language
         return "plain text"
-    
+
     @staticmethod
     def ensure_array_len(blocks):
         final_objs = []
@@ -581,7 +608,7 @@ class Html2JsonBase:
 
             # If the length of rich_text is greater than RICHTEXT_ARRAY_LENGTH, we split it
             rich_text_arr = obj["paragraph"]["rich_text"]
-            rich_texts = [rich_text_arr[i:i+Html2JsonBase.RICHTEXT_ARRAY_LENGTH]
+            rich_texts = [rich_text_arr[i:i + Html2JsonBase.RICHTEXT_ARRAY_LENGTH]
                           for i in range(0, len(rich_text_arr), Html2JsonBase.RICHTEXT_ARRAY_LENGTH)]
             for rich_text in rich_texts:
                 new_json_obj = {
