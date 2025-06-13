@@ -2,8 +2,13 @@ import re
 import os
 import copy
 from collections import namedtuple
-from bs4 import NavigableString, Tag, PageElement
+from typing import Dict, Any
+
+from bs4 import NavigableString, Tag, PageElement, BeautifulSoup
 from enum import Enum
+
+from html2notion.utils.table import NotionTableConverter
+
 from ..utils import logger, config, is_valid_url
 
 
@@ -75,6 +80,7 @@ class Html2JsonBase:
         else:
             notion_database_id = config['notion']['database_id']
         self.parent = {"type": "database_id", "database_id": notion_database_id}
+        self.is_databases_conversion = False
 
     def process(self):
         raise NotImplementedError("Subclasses must implement this method")
@@ -502,16 +508,13 @@ class Html2JsonBase:
                         rich_text.append(item)
         return json_obj
 
-    """
-    <div>
-    <div><br /></div>
-    <table> <thead> </thead><tbody> <tr> <td> </td> </tr> </tbody> </table>
-    <div><br /></div>
-    </div>
-    """
 
     # ../examples/insert_table.ipynb
     def convert_table(self, soup):
+        if self.is_databases_conversion:
+            notion_converter = NotionTableConverter(soup)
+            notion_converter.convert_to_notion_database_schema()
+            return notion_converter.data
         table_rows = []
         tr_tags = soup.find_all('tr')
         if not tr_tags:
@@ -534,7 +537,38 @@ class Html2JsonBase:
             }
             for td in td_tags:
                 col = self.generate_inline_obj(td)
-                one_row["table_row"]["cells"].append(col)
+                files_group = {
+                    "type": "files",
+                    "files": []
+                }
+                data_column_type = td.get('data-column-type')
+                if not is_th_tags:
+                    remaining = []
+
+                    for item in col:
+                        if (
+                                isinstance(item, dict)
+                                and item.get("type") in ["image", "file"]
+                                and "file_upload" in item.get(item["type"], {})
+                        ):
+                            files_group["files"].append(item)
+                        else:
+                            remaining.append(item)
+
+                    if files_group["files"]:
+                        remaining.insert(0, files_group)
+                    one_row["table_row"]["cells"].append(remaining)
+                else:
+                    if data_column_type and len(col) > 0:
+                        if data_column_type == "image":
+                            col[0].update(type="files")
+                        elif data_column_type == "date":
+                            col[0].update(type="date")
+                        elif data_column_type == "email":
+                            col[0].update(type="email")
+                        elif data_column_type == "select":
+                            col[0].update(type="select")
+                    one_row["table_row"]["cells"].append(col)
             table_rows.append(one_row)
 
         table_obj = {
@@ -545,6 +579,7 @@ class Html2JsonBase:
                 "children": table_rows,
             }
         }
+
         return table_obj
 
     @staticmethod
