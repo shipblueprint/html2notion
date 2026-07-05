@@ -1,69 +1,100 @@
-# html2notion
+# html2notion (fork with PDF + batch pipeline)
 
-A powerful conversion pipeline that transforms **HTML** (or **PDF**) files into Notion‑compatible JSON payloads and pushes them directly to a Notion database.
+> **This is a fork of [`selfboot/html2notion`](https://github.com/selfboot/html2notion)** — an incredibly useful Python tool for importing HTML content into Notion. All credit for the core `html2notion` library goes to the original author.
+>
+> This fork adds a **batch conversion pipeline** on top of the original library: PDF support via Marker‑PDF, a one‑click `run_all.bat` for Windows, and a separate `send_to_notion.py` CLI for pushing pre‑generated JSON to Notion.
 
-## Features
-- **HTML ↔ Notion** – Uses the original `html2notion` library for high‑fidelity block conversion.
-- **PDF support via Marker‑PDF 1.10.2** – Automatic PDF → HTML conversion with optional GPU memory control.
-- **GPU‑friendly** – You can limit VRAM usage (e.g., 6 GB) via the `INFERENCE_RAM` environment variable and `max_workers` / `batch_multiplier` settings.
-- **Batch processing** – Handles an entire `input/` folder and writes per‑file JSON and statistics to `output/`.
-- **One‑click Notion sync** – Sends everything to Notion using a simple CLI.
+---
 
-## Quick start
+## Fork Additions
+
+The original `html2notion` library converts a single HTML file into Notion blocks. This fork wraps it in a small pipeline that:
+
+1. **Converts PDF → HTML** using [Marker‑PDF 1.10.2](https://github.com/VikParuchuri/marker) (with optional GPU memory control).
+2. **Processes every file in `input/`** (HTML or PDF) and writes per‑file JSON + stats to `output/`.
+3. **Pushes all generated JSON to Notion** in one shot via a standalone CLI.
+
+### New files added by this fork
+
+| File | Purpose |
+|---|---|
+| `convert_vibestack.py` | Orchestrates PDF → HTML conversion via Marker‑PDF, then runs each HTML through `html2notion` to produce Notion JSON payloads. |
+| `marker_wrapper.py` | Thin wrapper around Marker‑PDF with `INFERENCE_RAM` VRAM limiting. |
+| `pdf_to_html.py` | Low‑level PDF → HTML conversion helper. |
+| `send_to_notion.py` | Standalone CLI that reads JSON from `output/` and pushes it to a Notion database. Accepts `--api-key` and `--database-id` so secrets stay out of config files. |
+| `run_all.bat` | Windows one‑click script: activates `.venv`, runs `convert_vibestack.py`, then `send_to_notion.py`. Reads `NOTION_API_KEY` and `NOTION_DATABASE_ID` env vars. |
+| `config.example.json` | Template for `config.json` with placeholder values. |
+
+The original `html2notion` package, tests, demos, and CLI (`html2notion --conf ... --dir ...`) are unchanged — see the upstream README below for that usage.
+
+### Quick start (fork pipeline)
+
 ```bash
-# Clone your fork (already done locally)
+# 1. Clone this fork
+git clone https://github.com/shipblueprint/html2notion.git
 cd html2notion
 
-# Create a virtual environment (optional but recommended)
-python -m venv .venv && .venv\Scripts\activate
-
-# Install dependencies
+# 2. Create venv and install
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-## Configuration
-1. **Notion credentials** – Edit `config.json` or pass them via the command line:
-   ```json
-   {
-     "notion_api_key": "YOUR_NOTION_API_KEY",
-     "database_id": "YOUR_DATABASE_ID"
-   }
-   ```
-2. **GPU memory limit** – Set `INFERENCE_RAM` (in GB) before running the pipeline. The provided `run_all.bat` already does this:
-   ```bat
-   set INFERENCE_RAM=6
-   ```
-3. **Marker‑PDF options** – Adjust inside `convert_vibestack.py` if you need different `max_workers` or `batch_multiplier`.
+# 3. Configure Notion credentials
+copy config.example.json config.json
+# Edit config.json with your real API key and database ID
 
-## Usage
-### 1️⃣ Convert files (HTML + PDF)
-Place your source files in the `input/` directory and run:
-```bat
+# 4. Put source files in input/
+#    (HTML files go directly, PDFs are auto-converted via Marker-PDF)
+
+# 5. Run the pipeline
 run_all.bat
 ```
-The script will:
-- Activate the virtual environment.
-- Convert PDFs using Marker‑PDF (respecting the 6 GB VRAM limit).
-- Process HTML files with `html2notion`.
-- Write `*_notion_output.json` and `*_notion_stats.json` to the `output/` folder.
 
-### 2️⃣ Push to Notion
-`run_all.bat` automatically calls `send_to_notion.py` with the API key and database ID from your fork’s config.
+Or, if you prefer env vars over `config.json`:
 
-## Advanced options
-- **Force OCR on PDFs** – Add `--force_ocr` to the Marker‑PDF config if your PDFs are scanned images.
-- **Batch size** – Lower `batch_multiplier` in `convert_vibestack.py` to reduce memory at the cost of speed.
-- **Parallel workers** – Change `max_workers` (default 1) for faster conversion on machines with more VRAM.
+```bat
+set NOTION_API_KEY=ntn_your_key
+set NOTION_DATABASE_ID=your_database_id
+run_all.bat
+```
 
-## Contributing
-Feel free to open issues or submit pull requests. Please keep the following in mind:
-- Stick to the existing coding style (PEP 8, type hints).
-- Update the README if you add new features or flags.
-- Ensure the pipeline still works on both Windows and Unix‑like environments.
+### Configuration
 
-## License
-This project is licensed under the MIT License – see the `LICENSE` file for details.
+| Where | Used by | Format |
+|---|---|---|
+| `config.json` (gitignored) | `html2notion` original CLI | `{"notion": {"database_id": "...", "api_key": "..."}}` |
+| `NOTION_API_KEY` + `NOTION_DATABASE_ID` env vars | `run_all.bat` → `send_to_notion.py` | Plain env vars |
+| `config.example.json` (tracked) | Template for new users | Placeholder values only |
 
+### GPU memory control (PDF conversion)
+
+Marker‑PDF can use a lot of VRAM. Set `INFERENCE_RAM` (in GB) before running:
+
+```bat
+set INFERENCE_RAM=6
+```
+
+`run_all.bat` already sets this. Lower `batch_multiplier` in `convert_vibestack.py` to reduce memory further at the cost of speed.
+
+### Advanced options
+
+- **Force OCR on scanned PDFs** — add `--force_ocr` to the Marker‑PDF config in `convert_vibestack.py`.
+- **Parallel workers** — change `max_workers` (default 1) in `convert_vibestack.py` for faster conversion on machines with more VRAM.
+- **Original library usage** — you can still use the upstream CLI directly: `html2notion --conf config.json --file single.html`
+
+---
+
+## Contributing back to upstream
+
+The fork additions (PDF pipeline, batch processing) are kept separate from the core `html2notion` library on purpose — they're a usage pattern, not a library change. If you'd like to see any of this merged into [`selfboot/html2notion`](https://github.com/selfboot/html2notion), please open an issue there first to discuss scope.
+
+---
+
+# Original README (`selfboot/html2notion`)
+
+The content below is the upstream README, kept intact for reference.
+
+<h1 align="center">Html2notion <a href='https://github.com/selfboot/html2notion/blob/master/README_zh.md'>简体中文</a></h1>
 <p align="center">
   <a href="https://github.com/selfboot/html2notion/actions/workflows/python-package.yml">
     <img src="https://github.com/selfboot/html2notion/actions/workflows/python-package.yml/badge.svg" alt="CI Test Status">
@@ -159,7 +190,6 @@ If you find any errors or have any suggestions for improvement, please do not he
 If you encounter import failures, you can submit the html file and log file together in the issue for easier problem identification.
 
 > If there are any private information in the files, please remove it first.
-
 
 ## License
 
