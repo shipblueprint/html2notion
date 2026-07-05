@@ -5,6 +5,11 @@ build/
 html2notion.egg-info/
 logs/*
 .config.json
+config.json
 .DS_Store
 dist/*
 .coverage
+output/
+input/
+.venv/
+__pycache__/

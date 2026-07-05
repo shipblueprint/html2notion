@@ -1,0 +1,13 @@
+{
+    "notion": {
+        "database_id": "your-notion-database-id",
+        "api_key": "your-notion-integration-token"
+    },
+
+    "cos": {
+        "secret_id": "your-cos-secret-id",
+        "secret_key": "your-cos-secret-key",
+        "region": "your-cos-region",
+        "bucket": "your-cos-bucket"
+    }
+}
