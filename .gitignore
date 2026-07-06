@@ -13,3 +13,4 @@ output/
 input/
 .venv/
 __pycache__/
+.omo/

@@ -8,5 +8,10 @@ anyio>=3.6.2
 cos-python-sdk-v5>=1.9.23
 tenacity>=8.2.2
 rich>=13.3.4
+chardet>=5.1.0
 aiolimiter>=1.0.0
+
+# PDF conversion (CPU-only, zero VRAM)
+pymupdf4llm>=1.28.0
+markdown>=3.10
 chardet>=5.1.0

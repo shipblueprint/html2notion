@@ -16,8 +16,6 @@ if exist ".venv\Scripts\activate.bat" (
     pause >nul
     exit /b 1
 )
-set INFERENCE_RAM=6
-
 REM Step 1: Convert PDFs/HTMLs (this script generates output JSON)
 echo 📄 Step 1: Running convert_vibestack.py...
 python convert_vibestack.py
