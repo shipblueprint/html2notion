@@ -528,6 +528,9 @@ class Html2JsonBase:
             if not td_tags:
                 td_tags = tr.find_all('th')
                 has_header = True
+                is_th_tags = True
+            else:
+                is_th_tags = False
             table_width = max(table_width, len(td_tags))
             one_row = {
                 "type": "table_row",

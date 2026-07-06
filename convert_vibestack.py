@@ -109,6 +109,10 @@ def main():
     for file_path in all_files:
         if file_path.is_dir():
             continue
+        output_stem = file_path.stem
+        if (OUTPUT_DIR / f"{output_stem}_notion_output.json").exists():
+            print(f"  [SKIP] {file_path.name} — output already exists")
+            continue
         # Decide using LLM marker
         file_type = decide_file_type(file_path)
         if file_type == "pdf":
