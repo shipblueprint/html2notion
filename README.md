@@ -72,6 +72,51 @@ run_all.bat
 
 ---
 
+## Roadmap: MCP Server
+
+Plan to wrap this pipeline as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server so any MCP-compatible client (Claude Desktop, Cursor, VS Code, etc.) can use it as a tool.
+
+**Stack:** [FastMCP](https://github.com/jlowin/fastmcp) (`pip install mcp`) — standard Python MCP framework, `@mcp.tool()` decorators.
+
+### Tools
+
+| Tool | What it does |
+|---|---|
+| `convert_pdf(pdf_path)` | Converts a PDF to Notion blocks — reuses `pymupdf4llm` → `markdown` → `html2json_process` from `convert_vibestack.py`. Returns JSON blocks directly (no file I/O). |
+| `convert_html(html_path)` | Converts an HTML file to Notion blocks — reuses `prepare_html` → `html2json_process`. |
+
+No `push_to_notion` tool — keeping that as a CLI boundary (`send_to_notion.py`).
+
+### Implementation
+
+```python
+from mcp.server.fastmcp import FastMCP
+from convert_vibestack import prepare_html, test_prepare_conf
+from html2notion.translate.html2json import html2json_process
+from html2notion.translate.import_stats import ImportStats
+
+mcp = FastMCP("html2notion")
+
+@mcp.tool()
+def convert_pdf(pdf_path: str) -> list:
+    """Convert a PDF file to Notion-compatible JSON blocks."""
+    # ... reuses pymupdf4llm + markdown + html2json_process
+
+@mcp.tool()
+def convert_html(html_path: str) -> list:
+    """Convert an HTML file to Notion-compatible JSON blocks."""
+    # ... reuses prepare_html + html2json_process
+```
+
+### Steps
+
+1. Create `mcp_server.py` — ~30 lines, thin FastMCP wrapper importing existing modules.
+2. Add `mcp>=1.0.0` to `requirements.txt`.
+3. Verify with `mcp dev mcp_server.py` or connect from an MCP client.
+4. No new abstractions — reuses every function already in `convert_vibestack.py`.
+
+---
+
 ## Contributing back to upstream
 
 The fork additions (PDF pipeline, batch processing) are kept separate from the core `html2notion` library on purpose — they're a usage pattern, not a library change. If you'd like to see any of this merged into [`selfboot/html2notion`](https://github.com/selfboot/html2notion), please open an issue there first to discuss scope.
